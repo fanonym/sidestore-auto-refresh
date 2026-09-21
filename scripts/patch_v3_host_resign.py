@@ -139,7 +139,8 @@ def patch(root):
     edit("SideStore/Core/Operations/PipelineRunner.swift", runner)
 
     def executor(s):
-        s = once(s, '            case .updateAppCertificate:\n', '''            case .updateAppCertificate:
+        s = once(s, '            case .updateAppCertificate:\n                loggerType = UpdateAppCertificateOperation.self\n', '''            case .updateAppCertificate:
+                loggerType = UpdateAppCertificateOperation.self
                 if let identity = context.standaloneContext.v3HostResignIdentity {
                     try identity.checkActiveIdentity()
                     guard let certificate = context.activeSigningCertificate,
@@ -152,7 +153,8 @@ def patch(root):
 ''')
         s = once(s, '                context.resignedAppBundle = resignedAppBundle',
                  '                try context.standaloneContext.v3HostResignIdentity?.validate(resignedAppBundle)\n                context.resignedAppBundle = resignedAppBundle')
-        s = once(s, '            case .installApp:\n', '''            case .installApp:
+        s = once(s, '            case .installApp:\n                loggerType = InstallAppOperation.self\n', '''            case .installApp:
+                loggerType = InstallAppOperation.self
                 if let identity = context.standaloneContext.v3HostResignIdentity {
                     guard let bundle = context.resignedAppBundle else { throw OperationError.invalidApp }
                     try identity.validate(bundle)
