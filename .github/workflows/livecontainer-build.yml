@@ -135,6 +135,8 @@ jobs:
             python3 builder/scripts/patch_combined_refresh_contract.py work/EmbeddedSideStore
             python3 builder/scripts/patch_combined_service_startup.py work/LiveContainer work/EmbeddedSideStore v3
             python3 builder/scripts/patch_combined_service_startup.py work/LiveContainer work/EmbeddedSideStore v3
+            python3 builder/scripts/patch_v3_host_resign.py work/EmbeddedSideStore
+            python3 builder/scripts/patch_v3_host_resign.py work/EmbeddedSideStore
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/App/AppDelegate.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/App/LiveContainerAutoRefreshAlarm.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/Settings/LCEmbeddedSideStoreRefreshView.swift
