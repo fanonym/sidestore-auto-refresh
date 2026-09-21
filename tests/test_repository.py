@@ -75,7 +75,7 @@ class RepositoryTests(unittest.TestCase):
                                  COMBINED_REFRESH_SCRIPT, EMBEDDED_KEYCHAIN_SCRIPT, 'audit_ipa_signing.py', 'patch_guest_return.py',
                                  'patch_multitask_dock.py',
                                  'package_livecontainer_combined.py', 'patch_combined_transport.py', 'patch_refresh_result_bridge.py',
-                            APP_LAYOUT_SCRIPT, V3_UNIFIED_SHELL_SCRIPT, "patch_v3_service.py", "patch_combined_service_startup.py", "combined_build_evidence.py", "run_issue25_rendering.py"},
+                            APP_LAYOUT_SCRIPT, V3_UNIFIED_SHELL_SCRIPT, "patch_v3_service.py", "patch_v3_host_resign.py", "patch_combined_service_startup.py", "combined_build_evidence.py", "run_issue25_rendering.py"},
         )
 
     def test_patch_scripts_parse_and_are_idempotent(self):
