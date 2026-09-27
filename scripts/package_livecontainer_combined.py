@@ -23,6 +23,11 @@ def adapt(text):
     text = replace_once(text, 'wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa',
                         'cp "$PATCHED_SIDESTORE_IPA" SideStore.ipa')
     text = replace_once(text, 'rm -r .zsign_cache', '# No zsign cache exists in the fresh packaging workspace.')
+    text = replace_once(
+        text,
+        'cp ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/ViewApp.intentdefinition ./Payload/LiveContainer.app/',
+        'cp ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Frameworks/AltStoreCore.framework/ViewApp.intentdefinition ./Payload/LiveContainer.app/'
+    )
     text = replace_once(text, 'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +',
                         'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +')
     text = replace_once(text, '# package\n',
