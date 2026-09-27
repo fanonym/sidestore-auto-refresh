@@ -75,6 +75,10 @@ jobs:
           (
             cd work/SideStore
             make build MARKETING_VERSION=0.6.3-nightly.2026.02.24.123+d2c0b5f6
+            # Xcode synchronizes resources before the build phase generates this IPA.
+            # Copy the freshly built upstream resource into the completed archive.
+            test -f AltStore/Resources/AltBackup.ipa
+            cp AltStore/Resources/AltBackup.ipa SideStore.xcarchive/Products/Applications/SideStore.app/AltBackup.ipa
             make fakesign
             make ipa
           ) 2>&1 | tee artifacts/logs/sidestore-build.log
