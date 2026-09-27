@@ -1,0 +1,297 @@
+name: Phase B1b - LiveContainer 3.7.2 CoreDevice integration
+on:
+  push:
+    branches: [migration/3.7.2.1]
+    paths: [.github/workflows/phase-b1b-coredevice-integration.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  coredevice-integration:
+    runs-on: macos-26
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_SHA: d62aa328a44c07386a3dcd96a5d9f16231c67047
+      SS_SHA: d2c0b5f6decbccff9ef28a59851781e37f110a90
+      IDEVICE_SHA: ebd7dadfc55d1c4facee3d11ecf5b28e20548b57
+      JKTCP_SHA: e674e1eee6d5943e13b1eba0bd24a9dd0b2fa020
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: '26.2'
+      - name: Checkout exact release sources
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs
+          exec > >(tee artifacts/logs/checkout.log) 2>&1
+          git clone https://github.com/LiveContainer/LiveContainer.git work/LiveContainer
+          git -C work/LiveContainer checkout --detach "$LC_SHA"
+          git -C work/LiveContainer submodule update --init --recursive
+          git clone https://github.com/LiveContainer/SideStore.git work/SideStore
+          git -C work/SideStore fetch origin "$SS_SHA"
+          git -C work/SideStore checkout --detach "$SS_SHA"
+          git -C work/SideStore submodule update --init --recursive
+
+          git clone https://github.com/SideStore/idevice.git work/idevice
+          git -C work/idevice checkout --detach "$IDEVICE_SHA"
+          git -C work/idevice submodule update --init --recursive
+
+          git clone https://github.com/SideStore/jktcp.git work/jktcp
+          git -C work/jktcp checkout --detach "$JKTCP_SHA"
+
+          test "$(git -C work/LiveContainer rev-parse HEAD)" = "$LC_SHA"
+          test "$(git -C work/SideStore rev-parse HEAD)" = "$SS_SHA"
+          test "$(git -C work/idevice rev-parse HEAD)" = "$IDEVICE_SHA"
+          test "$(git -C work/jktcp rev-parse HEAD)" = "$JKTCP_SHA"
+          test "$(git -C work/SideStore/Dependencies/minimuxer rev-parse HEAD)" = 9035aa25ae82c13cac73ecafb85f1aa27a00cf59
+          test "$(git -C work/SideStore/Dependencies/AltSign rev-parse HEAD)" = 4819a7984f44c3c9936e74196a88c6576f14c853
+          for repo in LiveContainer SideStore; do
+            git -C "work/$repo" rev-parse HEAD > "artifacts/$repo.sha"
+            git -C "work/$repo" submodule status --recursive > "artifacts/$repo-submodules.txt"
+            git -C "work/$repo" diff --exit-code
+          done
+          cp work/SideStore/Dependencies/minimuxer/Cargo.lock artifacts/minimuxer-Cargo.lock
+          printf '%s\n' 'SideSign: not present; historical release uses AltSign.' 'idevice: crates.io 0.1.29; checksum c598466c8dfdd2c6cb03c99f9077236e3141161d88d76d9249529421aef65ac8' 'idevice crate VCS SHA: 5cf78b306b74763e44168f153cfabadd6ea49ccc; dirty=true; crate checksum is authoritative.' > artifacts/signing-transport.txt
+          printf '%s\n' "$GITHUB_SHA" > artifacts/builder.sha
+          xcodebuild -version > artifacts/toolchain.txt
+      - name: Build historical Rust dependencies from pinned sources
+        run: |
+          set -euo pipefail
+          exec > >(tee artifacts/logs/rust-build.log) 2>&1
+          brew install ldid wget
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add --toolchain 1.93.0 aarch64-apple-ios
+          cargo +1.93.0 install --locked bindgen-cli --version 0.72.1
+          export IPHONEOS_DEPLOYMENT_TARGET=15.0
+          export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(xcrun --sdk iphoneos --show-sdk-path)"
+          for dep in minimuxer em_proxy; do
+            (
+              cd "work/SideStore/Dependencies/$dep"
+              if [ ! -f Cargo.lock ]; then cargo +1.93.0 generate-lockfile; fi
+              cargo +1.93.0 build --locked --lib --target aarch64-apple-ios
+              cp "target/aarch64-apple-ios/debug/lib$dep.a" "lib$dep-ios.a"
+              if [ "$dep" = minimuxer ]; then cp generated/*.h generated/*.swift .; fi
+            )
+            touch "work/SideStore/Dependencies/.skip-prebuilt-fetch-$dep"
+            cp "work/SideStore/Dependencies/$dep/Cargo.lock" "artifacts/$dep-Cargo.lock"
+          done
+          rustc +1.93.0 --version >> artifacts/toolchain.txt
+      - name: Build and integrate proven CoreDevice backend
+        run: |
+          set -euo pipefail
+          exec > >(tee artifacts/logs/coredevice-integration.log) 2>&1
+
+          rustup target add aarch64-apple-ios
+
+          python3 scripts/patch_jktcp_reliability.py work/jktcp
+          python3 scripts/patch_coredevice_idevice.py work/idevice work/jktcp
+
+          if grep -R -E 'rppairing_connect_quic|create_quic_listener|quinn::' \
+            work/idevice/ffi/src/tunnel_provider.rs \
+            work/idevice/idevice/src/tunnel.rs; then
+            echo "ERROR: obsolete QUIC transport path found after CoreDevice patch" >&2
+            exit 1
+          fi
+
+          grep -Fq 'packet.extend_from_slice(CDTUNNEL_MAGIC)' \
+            work/idevice/idevice/src/tunnel.rs
+
+          grep -Fq \
+            'effective_mss = negotiated_mtu.saturating_sub(60).min(1340)' \
+            work/idevice/ffi/src/tunnel_provider.rs
+
+          grep -Fq 'HeartbeatClient::connect' \
+            work/idevice/ffi/src/tunnel_provider.rs
+
+          grep -Fq \
+            'run_sync_local(async move { fd.write_entire(data_slice).await })' \
+            work/idevice/ffi/src/afc.rs
+
+          grep -Fq \
+            'let data = unsafe { Box::from_raw(slice) };' \
+            work/idevice/ffi/src/lib.rs
+
+          cargo fmt --manifest-path work/jktcp/Cargo.toml
+          cargo fmt --manifest-path work/idevice/ffi/Cargo.toml
+
+          git -C work/jktcp diff --check
+          git -C work/idevice diff --check
+
+          cargo test \
+            --manifest-path work/jktcp/Cargo.toml \
+            --lib -- \
+            --skip tests::local_tcp \
+            --skip tests::handle_speed
+
+          cargo check \
+            --manifest-path work/idevice/ffi/Cargo.toml \
+            --features obfuscate
+
+          (
+            cd work/idevice
+
+            BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(xcrun --sdk iphoneos --show-sdk-path)" \
+              IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+              cargo build \
+                --release \
+                --target aarch64-apple-ios \
+                --features obfuscate \
+                --manifest-path ffi/Cargo.toml
+
+            test -f target/aarch64-apple-ios/release/libidevice_ffi.a
+            test -f ffi/idevice.h
+
+            grep -Fq 'tunnel_create_usb' ffi/idevice.h
+            grep -Fq 'tunnel_heartbeat_is_active' ffi/idevice.h
+            grep -Fq 'idevice_set_transport_log_callback' ffi/idevice.h
+
+            xcrun nm \
+              -arch arm64 \
+              -g target/aarch64-apple-ios/release/libidevice_ffi.a \
+              > ../../artifacts/idevice-symbols.txt \
+              2> ../../artifacts/idevice-nm-warnings.txt || true
+
+            grep -E \
+              '[[:space:]][Tt][[:space:]]_lockdown_diag_rust_log$' \
+              ../../artifacts/idevice-symbols.txt
+
+            grep -E \
+              '[[:space:]][Tt][[:space:]]_idevice_set_transport_log_callback$' \
+              ../../artifacts/idevice-symbols.txt
+
+            rm -rf swift/IDevice.xcframework
+            cp ffi/idevice.h swift/include/idevice.h
+
+            xcodebuild -create-xcframework \
+              -library target/aarch64-apple-ios/release/libidevice_ffi.a \
+              -headers swift/include \
+              -output swift/IDevice.xcframework
+          )
+
+          test -f work/idevice/swift/IDevice.xcframework/Info.plist
+
+          MUX="$PWD/work/SideStore/Dependencies/minimuxer"
+
+          mkdir -p "$MUX/DeviceGateway/LocalBinary"
+          rm -rf "$MUX/DeviceGateway/LocalBinary/IDevice.xcframework"
+
+          cp -R \
+            work/idevice/swift/IDevice.xcframework \
+            "$MUX/DeviceGateway/LocalBinary/IDevice.xcframework"
+
+          python3 scripts/patch_combined_transport.py "$MUX"
+          python3 scripts/patch_local_idevice_package.py "$MUX"
+
+          git -C "$MUX" diff --binary > "$RUNNER_TEMP/b1b-first.diff"
+
+          python3 -c \
+            'import hashlib,pathlib,sys; root=pathlib.Path(sys.argv[1]); print([(str(p.relative_to(root)), hashlib.sha256(p.read_bytes()).hexdigest()) for p in sorted(root.rglob("*.swift"))])' \
+            "$MUX" > "$RUNNER_TEMP/b1b-swift-first.txt"
+
+          python3 scripts/patch_combined_transport.py "$MUX"
+          python3 scripts/patch_local_idevice_package.py "$MUX"
+
+          git -C "$MUX" diff --binary > "$RUNNER_TEMP/b1b-second.diff"
+
+          python3 -c \
+            'import hashlib,pathlib,sys; root=pathlib.Path(sys.argv[1]); print([(str(p.relative_to(root)), hashlib.sha256(p.read_bytes()).hexdigest()) for p in sorted(root.rglob("*.swift"))])' \
+            "$MUX" > "$RUNNER_TEMP/b1b-swift-second.txt"
+
+          cmp "$RUNNER_TEMP/b1b-first.diff" "$RUNNER_TEMP/b1b-second.diff"
+          cmp "$RUNNER_TEMP/b1b-swift-first.txt" "$RUNNER_TEMP/b1b-swift-second.txt"
+
+          git -C "$MUX" diff --check
+
+          cp "$RUNNER_TEMP/b1b-first.diff" artifacts/coredevice-minimuxer.patch
+          git -C work/idevice diff --binary > artifacts/coredevice-idevice.patch
+          git -C work/jktcp diff --binary > artifacts/coredevice-jktcp.patch
+
+          shasum -a 256 \
+            work/idevice/target/aarch64-apple-ios/release/libidevice_ffi.a \
+            > artifacts/coredevice-libidevice.sha256
+
+      - name: Archive clean LiveContainer and SideStore
+        run: |
+          set -euo pipefail
+          xcodebuild archive -project work/LiveContainer/LiveContainer.xcodeproj -scheme LiveContainer -sdk iphoneos -arch arm64 -configuration Release -archivePath "$PWD/work/LiveContainer/archive" 2>&1 | tee artifacts/logs/livecontainer-build.log
+          (
+            cd work/SideStore
+            make build MARKETING_VERSION=0.6.3-nightly.2026.02.24.123+d2c0b5f6
+            # Xcode synchronizes resources before the build phase generates this IPA.
+            # Copy the freshly built upstream resource into the completed archive.
+            test -f AltStore/Resources/AltBackup.ipa
+            cp AltStore/Resources/AltBackup.ipa SideStore.xcarchive/Products/Applications/SideStore.app/AltBackup.ipa
+            make fakesign
+            make ipa
+          ) 2>&1 | tee artifacts/logs/sidestore-build.log
+      - name: Package using release 3.7.2 upstream script
+        run: |
+          set -euo pipefail
+          exec > >(tee artifacts/logs/packaging.log) 2>&1
+          export BASELINE_SIDESTORE_IPA="$PWD/work/SideStore/SideStore.ipa"
+          export archive_path=archive scheme=LiveContainer
+          cd work/LiveContainer
+          curl -fL --retry 3 https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify -o dylibify
+          echo '6d23f6a2fc4d8442f87caa1161aebe6ecaafd0e8c41ce205da007efb04fc82c7  dylibify' | shasum -a 256 -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/build_github.sh')
+          s=p.read_text()
+          replacements={
+            'wget https://github.com/LiveContainer/SideStore/releases/download/dylibify/dylibify': ': # verified relocated upstream dylibify already downloaded',
+            'brew install ldid': 'command -v ldid',
+            'wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa': 'cp "$BASELINE_SIDESTORE_IPA" SideStore.ipa',
+            'rm -r .zsign_cache': ': # no zsign cache in a fresh archive',
+            'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +': 'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +',
+            'cp ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/ViewApp.intentdefinition ./Payload/LiveContainer.app/': 'cp ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Frameworks/AltStoreCore.framework/ViewApp.intentdefinition ./Payload/LiveContainer.app/',
+          }
+          for old,new in replacements.items():
+            assert s.count(old)==1, old
+            s=s.replace(old,new)
+          Path('baseline-package.sh').write_text('set -euo pipefail\n'+s)
+          PY
+          bash baseline-package.sh
+          cp 'LiveContainer+SideStore.ipa' ../../artifacts/LiveContainer-SideStore-3.7.2.1-coredevice.ipa
+          cp baseline-package.sh ../../artifacts/
+      - name: Verify package and record SHA256
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,plistlib,struct,zipfile
+          from pathlib import Path
+          p=Path('artifacts/LiveContainer-SideStore-3.7.2.1-coredevice.ipa')
+          with zipfile.ZipFile(p) as z:
+            assert z.testzip() is None
+            base='Payload/LiveContainer.app/'
+            host=plistlib.loads(z.read(base+'Info.plist'))
+            side=plistlib.loads(z.read(base+'Frameworks/SideStoreApp.framework/Info.plist'))
+            assert host['CFBundleShortVersionString']=='3.7.2'
+            assert side['CFBundleShortVersionString']=='0.6.3-nightly.2026.02.24.123+d2c0b5f6'
+            binary=z.read(base+'Frameworks/SideStoreApp.framework/SideStore')
+            assert binary[:4]==b'\xcf\xfa\xed\xfe' and struct.unpack_from('<I',binary,12)[0]==6
+            assert base+'PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension' in z.namelist()
+            assert base+'PlugIns/LiveProcess.appex/LiveProcess' in z.namelist()
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          p.with_suffix('.sha256').write_text(digest+'  '+p.name+'\n')
+          Path('artifacts/verification.json').write_text(json.dumps({'sha256':digest,'size':p.stat().st_size,'host_version':host['CFBundleShortVersionString'],'sidestore_version':side['CFBundleShortVersionString'],'custom_patches':True},indent=2)+'\n')
+          print(digest,p.name)
+          PY
+      - name: Capture final source and package provenance
+        if: always()
+        run: |
+          mkdir -p artifacts/logs artifacts/resolved
+          for repo in LiveContainer SideStore; do
+            git -C "work/$repo" diff --submodule=diff > "artifacts/logs/$repo-final.diff" || true
+            find "work/$repo" -name Package.resolved -exec cp {} "artifacts/resolved/$repo-Package.resolved" \; || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-b1b-3.7.2.1-coredevice
+          path: artifacts
+          retention-days: 30
+          if-no-files-found: error
