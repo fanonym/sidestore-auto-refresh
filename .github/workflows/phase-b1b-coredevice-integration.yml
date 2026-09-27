@@ -2,7 +2,11 @@ name: Phase B1b - LiveContainer 3.7.2 CoreDevice integration
 on:
   push:
     branches: [migration/3.7.2.1]
-    paths: [.github/workflows/phase-b1b-coredevice-integration.yml]
+    paths:
+      - .github/workflows/phase-b1b-coredevice-integration.yml
+      - scripts/patch_jktcp_reliability.py
+      - scripts/patch_coredevice_idevice.py
+      - scripts/patch_minimuxer_coredevice.py
   workflow_dispatch:
 permissions:
   contents: read
