@@ -80,22 +80,16 @@ jobs:
             cp "work/SideStore/Dependencies/$dep/Cargo.lock" "artifacts/$dep-Cargo.lock"
           done
           rustc +1.93.0 --version >> artifacts/toolchain.txt
-      - name: Build and integrate proven CoreDevice backend
+      - name: Patch and build native Rust CoreDevice refresh transport
         run: |
           set -euo pipefail
           exec > >(tee artifacts/logs/coredevice-integration.log) 2>&1
 
-          rustup target add aarch64-apple-ios
+          MUX="$PWD/work/SideStore/Dependencies/minimuxer"
 
+          # Reproduce the proven B1a transport source patches.
           python3 scripts/patch_jktcp_reliability.py work/jktcp
           python3 scripts/patch_coredevice_idevice.py work/idevice work/jktcp
-
-          if grep -R -E 'rppairing_connect_quic|create_quic_listener|quinn::' \
-            work/idevice/ffi/src/tunnel_provider.rs \
-            work/idevice/idevice/src/tunnel.rs; then
-            echo "ERROR: obsolete QUIC transport path found after CoreDevice patch" >&2
-            exit 1
-          fi
 
           grep -Fq 'packet.extend_from_slice(CDTUNNEL_MAGIC)' \
             work/idevice/idevice/src/tunnel.rs
@@ -111,108 +105,85 @@ jobs:
             'run_sync_local(async move { fd.write_entire(data_slice).await })' \
             work/idevice/ffi/src/afc.rs
 
-          grep -Fq \
-            'let data = unsafe { Box::from_raw(slice) };' \
-            work/idevice/ffi/src/lib.rs
-
-          cargo fmt --manifest-path work/jktcp/Cargo.toml
-          cargo fmt --manifest-path work/idevice/ffi/Cargo.toml
-
           git -C work/jktcp diff --check
           git -C work/idevice diff --check
 
-          cargo test \
+          cargo +1.93.0 test \
             --manifest-path work/jktcp/Cargo.toml \
             --lib -- \
             --skip tests::local_tcp \
             --skip tests::handle_speed
 
-          cargo check \
-            --manifest-path work/idevice/ffi/Cargo.toml \
-            --features obfuscate
-
-          (
-            cd work/idevice
-
-            BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(xcrun --sdk iphoneos --show-sdk-path)" \
-              IPHONEOS_DEPLOYMENT_TARGET=15.0 \
-              cargo build \
-                --release \
-                --target aarch64-apple-ios \
-                --features obfuscate \
-                --manifest-path ffi/Cargo.toml
-
-            test -f target/aarch64-apple-ios/release/libidevice_ffi.a
-            test -f ffi/idevice.h
-
-            grep -Fq 'tunnel_create_usb' ffi/idevice.h
-            grep -Fq 'tunnel_heartbeat_is_active' ffi/idevice.h
-            grep -Fq 'idevice_set_transport_log_callback' ffi/idevice.h
-
-            xcrun nm \
-              -arch arm64 \
-              -g target/aarch64-apple-ios/release/libidevice_ffi.a \
-              > ../../artifacts/idevice-symbols.txt \
-              2> ../../artifacts/idevice-nm-warnings.txt || true
-
-            grep -E \
-              '[[:space:]][Tt][[:space:]]_lockdown_diag_rust_log$' \
-              ../../artifacts/idevice-symbols.txt
-
-            grep -E \
-              '[[:space:]][Tt][[:space:]]_idevice_set_transport_log_callback$' \
-              ../../artifacts/idevice-symbols.txt
-
-            rm -rf swift/IDevice.xcframework
-            cp ffi/idevice.h swift/include/idevice.h
-
-            xcodebuild -create-xcframework \
-              -library target/aarch64-apple-ios/release/libidevice_ffi.a \
-              -headers swift/include \
-              -output swift/IDevice.xcframework
-          )
-
-          test -f work/idevice/swift/IDevice.xcframework/Info.plist
-
-          MUX="$PWD/work/SideStore/Dependencies/minimuxer"
-
-          mkdir -p "$MUX/DeviceGateway/LocalBinary"
-          rm -rf "$MUX/DeviceGateway/LocalBinary/IDevice.xcframework"
-
-          cp -R \
-            work/idevice/swift/IDevice.xcframework \
-            "$MUX/DeviceGateway/LocalBinary/IDevice.xcframework"
-
-          python3 scripts/patch_combined_transport.py "$MUX"
-          python3 scripts/patch_local_idevice_package.py "$MUX"
+          # Native minimuxer 9035aa25 integration.
+          python3 scripts/patch_minimuxer_coredevice.py "$MUX"
 
           git -C "$MUX" diff --binary > "$RUNNER_TEMP/b1b-first.diff"
 
-          python3 -c \
-            'import hashlib,pathlib,sys; root=pathlib.Path(sys.argv[1]); print([(str(p.relative_to(root)), hashlib.sha256(p.read_bytes()).hexdigest()) for p in sorted(root.rglob("*.swift"))])' \
-            "$MUX" > "$RUNNER_TEMP/b1b-swift-first.txt"
-
-          python3 scripts/patch_combined_transport.py "$MUX"
-          python3 scripts/patch_local_idevice_package.py "$MUX"
+          python3 scripts/patch_minimuxer_coredevice.py "$MUX"
 
           git -C "$MUX" diff --binary > "$RUNNER_TEMP/b1b-second.diff"
 
-          python3 -c \
-            'import hashlib,pathlib,sys; root=pathlib.Path(sys.argv[1]); print([(str(p.relative_to(root)), hashlib.sha256(p.read_bytes()).hexdigest()) for p in sorted(root.rglob("*.swift"))])' \
-            "$MUX" > "$RUNNER_TEMP/b1b-swift-second.txt"
+          cmp "$RUNNER_TEMP/b1b-first.diff" \
+              "$RUNNER_TEMP/b1b-second.diff"
 
-          cmp "$RUNNER_TEMP/b1b-first.diff" "$RUNNER_TEMP/b1b-second.diff"
-          cmp "$RUNNER_TEMP/b1b-swift-first.txt" "$RUNNER_TEMP/b1b-swift-second.txt"
+          grep -Fq 'SIDESTORE_AUTOREFRESH_COREDEVICE_B1B' \
+            "$MUX/src/install.rs"
+
+          grep -Fq 'idevice_core = { package = "idevice"' \
+            "$MUX/Cargo.toml"
+
+          grep -Fq 'CoreDeviceProxy::connect(&provider)' \
+            "$MUX/src/install.rs"
+
+          grep -Fq 'CoreAfcClient::connect_rsd' \
+            "$MUX/src/install.rs"
+
+          grep -Fq 'CoreInstallationProxyClient::connect_rsd' \
+            "$MUX/src/install.rs"
+
+          grep -Fq 'const COREDEVICE_ADDR: &str = "10.7.0.1"' \
+            "$MUX/src/install.rs"
+
+          rustfmt +1.93.0 \
+            --edition 2021 \
+            --check "$MUX/src/install.rs"
 
           git -C "$MUX" diff --check
 
-          cp "$RUNNER_TEMP/b1b-first.diff" artifacts/coredevice-minimuxer.patch
-          git -C work/idevice diff --binary > artifacts/coredevice-idevice.patch
-          git -C work/jktcp diff --binary > artifacts/coredevice-jktcp.patch
+          # cargo check also resolves the new local idevice_core dependency
+          # and updates Cargo.lock deterministically for the subsequent
+          # --locked target build.
+          cargo +1.93.0 check \
+            --manifest-path "$MUX/Cargo.toml"
 
-          shasum -a 256 \
-            work/idevice/target/aarch64-apple-ios/release/libidevice_ffi.a \
-            > artifacts/coredevice-libidevice.sha256
+          export IPHONEOS_DEPLOYMENT_TARGET=15.0
+          export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(xcrun --sdk iphoneos --show-sdk-path)"
+
+          cargo +1.93.0 build \
+            --locked \
+            --lib \
+            --target aarch64-apple-ios \
+            --manifest-path "$MUX/Cargo.toml"
+
+          test -f "$MUX/target/aarch64-apple-ios/debug/libminimuxer.a"
+
+          # Replace the pristine Phase A minimuxer library with the patched
+          # CoreDevice/RSD build consumed by the SideStore Xcode build.
+          cp "$MUX/target/aarch64-apple-ios/debug/libminimuxer.a" \
+            "$MUX/libminimuxer-ios.a"
+
+          cp "$MUX/Cargo.lock" artifacts/minimuxer-coredevice-Cargo.lock
+          cp "$RUNNER_TEMP/b1b-first.diff" \
+            artifacts/coredevice-minimuxer.patch
+
+          git -C work/idevice diff --binary \
+            > artifacts/coredevice-idevice.patch
+
+          git -C work/jktcp diff --binary \
+            > artifacts/coredevice-jktcp.patch
+
+          shasum -a 256 "$MUX/libminimuxer-ios.a" \
+            > artifacts/coredevice-libminimuxer.sha256
 
       - name: Archive clean LiveContainer and SideStore
         run: |
