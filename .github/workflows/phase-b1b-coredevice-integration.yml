@@ -146,11 +146,22 @@ jobs:
           grep -Fq 'const COREDEVICE_ADDR: &str = "10.7.0.1"' \
             "$MUX/src/install.rs"
 
+          # Format only the file introduced by the B1b patch. Do not run
+          # cargo fmt over the historical minimuxer tree because upstream
+          # sources contain formatting differences unrelated to this port.
+          rustfmt +1.93.0 \
+            --edition 2021 \
+            "$MUX/src/install.rs"
+
           rustfmt +1.93.0 \
             --edition 2021 \
             --check "$MUX/src/install.rs"
 
           git -C "$MUX" diff --check
+
+          # Capture provenance after rustfmt so the artifact contains the
+          # exact source that is subsequently compiled.
+          git -C "$MUX" diff --binary > "$RUNNER_TEMP/b1b-final.diff"
 
           # cargo check also resolves the new local idevice_core dependency
           # and updates Cargo.lock deterministically for the subsequent
@@ -175,7 +186,7 @@ jobs:
             "$MUX/libminimuxer-ios.a"
 
           cp "$MUX/Cargo.lock" artifacts/minimuxer-coredevice-Cargo.lock
-          cp "$RUNNER_TEMP/b1b-first.diff" \
+          cp "$RUNNER_TEMP/b1b-final.diff" \
             artifacts/coredevice-minimuxer.patch
 
           git -C work/idevice diff --binary \
