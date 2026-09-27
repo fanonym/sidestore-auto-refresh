@@ -1,6 +1,11 @@
 name: Phase B1a - CoreDevice backend
 
 on:
+  push:
+    branches:
+      - migration/3.7.2.1
+    paths:
+      - .github/workflows/phase-b1a-coredevice-backend.yml
   workflow_dispatch:
 
 permissions:
