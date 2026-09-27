@@ -1,0 +1,146 @@
+name: Phase A - pristine LiveContainer 3.7.2 baseline
+on:
+  push:
+    branches: [migration/3.7.2.1]
+    paths: [.github/workflows/phase-a-baseline.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: macos-26
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_SHA: d62aa328a44c07386a3dcd96a5d9f16231c67047
+      SS_SHA: d2c0b5f6decbccff9ef28a59851781e37f110a90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: '26.2'
+      - name: Checkout exact release sources
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs
+          exec > >(tee artifacts/logs/checkout.log) 2>&1
+          git clone https://github.com/LiveContainer/LiveContainer.git work/LiveContainer
+          git -C work/LiveContainer checkout --detach "$LC_SHA"
+          git -C work/LiveContainer submodule update --init --recursive
+          git clone https://github.com/LiveContainer/SideStore.git work/SideStore
+          git -C work/SideStore fetch origin "$SS_SHA"
+          git -C work/SideStore checkout --detach "$SS_SHA"
+          git -C work/SideStore submodule update --init --recursive
+          test "$(git -C work/LiveContainer rev-parse HEAD)" = "$LC_SHA"
+          test "$(git -C work/SideStore rev-parse HEAD)" = "$SS_SHA"
+          test "$(git -C work/SideStore/Dependencies/minimuxer rev-parse HEAD)" = 9035aa25ae82c13cac73ecafb85f1aa27a00cf59
+          test "$(git -C work/SideStore/Dependencies/AltSign rev-parse HEAD)" = 4819a7984f44c3c9936e74196a88c6576f14c853
+          for repo in LiveContainer SideStore; do
+            git -C "work/$repo" rev-parse HEAD > "artifacts/$repo.sha"
+            git -C "work/$repo" submodule status --recursive > "artifacts/$repo-submodules.txt"
+            git -C "work/$repo" diff --exit-code
+          done
+          cp work/SideStore/Dependencies/minimuxer/Cargo.lock artifacts/minimuxer-Cargo.lock
+          printf '%s\n' 'SideSign: not present; historical release uses AltSign.' 'idevice: crates.io 0.1.29; checksum c598466c8dfdd2c6cb03c99f9077236e3141161d88d76d9249529421aef65ac8' 'idevice crate VCS SHA: 5cf78b306b74763e44168f153cfabadd6ea49ccc; dirty=true; crate checksum is authoritative.' > artifacts/signing-transport.txt
+          printf '%s\n' "$GITHUB_SHA" > artifacts/builder.sha
+          xcodebuild -version > artifacts/toolchain.txt
+      - name: Build historical Rust dependencies from pinned sources
+        run: |
+          set -euo pipefail
+          exec > >(tee artifacts/logs/rust-build.log) 2>&1
+          brew install ldid wget
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup target add --toolchain 1.93.0 aarch64-apple-ios
+          cargo +1.93.0 install --locked bindgen-cli --version 0.72.1
+          export IPHONEOS_DEPLOYMENT_TARGET=15.0
+          export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$(xcrun --sdk iphoneos --show-sdk-path)"
+          for dep in minimuxer em_proxy; do
+            (
+              cd "work/SideStore/Dependencies/$dep"
+              if [ ! -f Cargo.lock ]; then cargo +1.93.0 generate-lockfile; fi
+              cargo +1.93.0 build --locked --lib --target aarch64-apple-ios
+              cp "target/aarch64-apple-ios/debug/lib$dep.a" "lib$dep-ios.a"
+              if [ "$dep" = minimuxer ]; then cp generated/*.h generated/*.swift .; fi
+            )
+            touch "work/SideStore/Dependencies/.skip-prebuilt-fetch-$dep"
+            cp "work/SideStore/Dependencies/$dep/Cargo.lock" "artifacts/$dep-Cargo.lock"
+          done
+          rustc +1.93.0 --version >> artifacts/toolchain.txt
+      - name: Archive clean LiveContainer and SideStore
+        run: |
+          set -euo pipefail
+          xcodebuild archive -project work/LiveContainer/LiveContainer.xcodeproj -scheme LiveContainer -sdk iphoneos -arch arm64 -configuration Release -archivePath "$PWD/work/LiveContainer/archive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee artifacts/logs/livecontainer-build.log
+          (
+            cd work/SideStore
+            make build MARKETING_VERSION=0.6.3-nightly.2026.02.24.123+d2c0b5f6
+            make fakesign
+            make ipa
+          ) 2>&1 | tee artifacts/logs/sidestore-build.log
+      - name: Package using release 3.7.2 upstream script
+        run: |
+          set -euo pipefail
+          exec > >(tee artifacts/logs/packaging.log) 2>&1
+          export BASELINE_SIDESTORE_IPA="$PWD/work/SideStore/SideStore.ipa"
+          export archive_path=archive scheme=LiveContainer
+          cd work/LiveContainer
+          curl -fL --retry 3 https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify -o dylibify
+          echo '6d23f6a2fc4d8442f87caa1161aebe6ecaafd0e8c41ce205da007efb04fc82c7  dylibify' | shasum -a 256 -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/build_github.sh')
+          s=p.read_text()
+          replacements={
+            'wget https://github.com/LiveContainer/SideStore/releases/download/dylibify/dylibify': ': # verified relocated upstream dylibify already downloaded',
+            'brew install ldid': 'command -v ldid',
+            'wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa': 'cp "$BASELINE_SIDESTORE_IPA" SideStore.ipa',
+            'rm -r .zsign_cache': ': # no zsign cache in a fresh archive',
+            'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +': 'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +',
+          }
+          for old,new in replacements.items():
+            assert s.count(old)==1, old
+            s=s.replace(old,new)
+          Path('baseline-package.sh').write_text('set -euo pipefail\n'+s)
+          PY
+          bash baseline-package.sh
+          cp 'LiveContainer+SideStore.ipa' ../../artifacts/LiveContainer-SideStore-3.7.2.1-baseline.ipa
+          cp baseline-package.sh ../../artifacts/
+      - name: Verify package and record SHA256
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,plistlib,struct,zipfile
+          from pathlib import Path
+          p=Path('artifacts/LiveContainer-SideStore-3.7.2.1-baseline.ipa')
+          with zipfile.ZipFile(p) as z:
+            assert z.testzip() is None
+            base='Payload/LiveContainer.app/'
+            host=plistlib.loads(z.read(base+'Info.plist'))
+            side=plistlib.loads(z.read(base+'Frameworks/SideStoreApp.framework/Info.plist'))
+            assert host['CFBundleShortVersionString']=='3.7.2'
+            assert side['CFBundleShortVersionString']=='0.6.3-nightly.2026.02.24.123+d2c0b5f6'
+            binary=z.read(base+'Frameworks/SideStoreApp.framework/SideStore')
+            assert binary[:4]==b'\xcf\xfa\xed\xfe' and struct.unpack_from('<I',binary,12)[0]==6
+            assert base+'PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension' in z.namelist()
+            assert base+'PlugIns/LiveProcess.appex/LiveProcess' in z.namelist()
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          p.with_suffix('.sha256').write_text(digest+'  '+p.name+'\n')
+          Path('artifacts/verification.json').write_text(json.dumps({'sha256':digest,'size':p.stat().st_size,'host_version':host['CFBundleShortVersionString'],'sidestore_version':side['CFBundleShortVersionString'],'custom_patches':False},indent=2)+'\n')
+          print(digest,p.name)
+          PY
+      - name: Capture final source and package provenance
+        if: always()
+        run: |
+          mkdir -p artifacts/logs artifacts/resolved
+          for repo in LiveContainer SideStore; do
+            git -C "work/$repo" diff --submodule=diff > "artifacts/logs/$repo-final.diff" || true
+            find "work/$repo" -name Package.resolved -exec cp {} "artifacts/resolved/$repo-Package.resolved" \; || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-a-3.7.2.1-baseline
+          path: artifacts
+          retention-days: 30
+          if-no-files-found: error
