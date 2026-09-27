@@ -101,6 +101,7 @@ jobs:
             'wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa': 'cp "$BASELINE_SIDESTORE_IPA" SideStore.ipa',
             'rm -r .zsign_cache': ': # no zsign cache in a fresh archive',
             'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +': 'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +',
+            'cp ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/ViewApp.intentdefinition ./Payload/LiveContainer.app/': 'cp ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Frameworks/AltStoreCore.framework/ViewApp.intentdefinition ./Payload/LiveContainer.app/',
           }
           for old,new in replacements.items():
             assert s.count(old)==1, old
