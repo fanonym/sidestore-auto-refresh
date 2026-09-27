@@ -30,20 +30,9 @@ const INITIAL_PERSIST_MS: u64 = 200;
 
 const OUR_WSCALE: u8 = 8;
 
-#[cfg(target_os = "ios")]
-unsafe extern "C" {
-    fn lockdown_diag_rust_log(message: *const std::ffi::c_char);
-}
-
-#[cfg(target_os = "ios")]
 fn transport_diag(message: &str) {
-    if let Ok(message) = std::ffi::CString::new(message) {
-        unsafe { lockdown_diag_rust_log(message.as_ptr()) };
-    }
-}
-
-#[cfg(not(target_os = "ios"))]
-fn transport_diag(_message: &str) {}""",
+    tracing::debug!("{message}");
+}""",
         "transport diagnostics and persist constants",
     )
 
