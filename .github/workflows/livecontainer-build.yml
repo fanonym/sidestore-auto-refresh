@@ -237,10 +237,12 @@ jobs:
           rm -rf "$MUX/DeviceGateway/LocalBinary/IDevice.xcframework"
           cp -R idevice/swift/IDevice.xcframework "$MUX/DeviceGateway/LocalBinary/IDevice.xcframework"
           python3 builder/scripts/patch_combined_transport.py "$MUX"
+          python3 builder/scripts/patch_localdevvpn_dualstack.py work/EmbeddedSideStore
           python3 builder/scripts/patch_local_idevice_package.py "$MUX"
           git -C "$MUX" diff --binary >"$RUNNER_TEMP/combined-transport-first.diff"
           python3 -c 'import hashlib, pathlib, sys; root = pathlib.Path(sys.argv[1]); print([(str(p.relative_to(root)), hashlib.sha256(p.read_bytes()).hexdigest()) for p in sorted(root.rglob("*.swift"))])' "$MUX" >"$RUNNER_TEMP/combined-swift-first.txt"
           python3 builder/scripts/patch_combined_transport.py "$MUX"
+          python3 builder/scripts/patch_localdevvpn_dualstack.py work/EmbeddedSideStore
           python3 builder/scripts/patch_local_idevice_package.py "$MUX"
           git -C "$MUX" diff --binary >"$RUNNER_TEMP/combined-transport-second.diff"
           python3 -c 'import hashlib, pathlib, sys; root = pathlib.Path(sys.argv[1]); print([(str(p.relative_to(root)), hashlib.sha256(p.read_bytes()).hexdigest()) for p in sorted(root.rglob("*.swift"))])' "$MUX" >"$RUNNER_TEMP/combined-swift-second.txt"

@@ -25,6 +25,7 @@ COMBINED_REFRESH_SCRIPT = "patch_combined_refresh_contract.py"
 EMBEDDED_KEYCHAIN_SCRIPT = "patch_embedded_keychain.py"
 APP_LAYOUT_SCRIPT = "patch_app_layout.py"
 V3_UNIFIED_SHELL_SCRIPT = "patch_v3_unified_shell.py"
+LOCALDEVVPN_DUALSTACK_SCRIPT = "patch_localdevvpn_dualstack.py"
 
 _SENSITIVE_ARTIFACT_SUFFIXES = {".p12", ".pfx", ".der", ".pem", ".key"}
 _SENSITIVE_NAMES = re.compile(
@@ -75,12 +76,12 @@ class RepositoryTests(unittest.TestCase):
                                  COMBINED_REFRESH_SCRIPT, EMBEDDED_KEYCHAIN_SCRIPT, 'audit_ipa_signing.py', 'patch_guest_return.py',
                                  'patch_multitask_dock.py',
                                  'package_livecontainer_combined.py', 'patch_combined_transport.py', 'patch_refresh_result_bridge.py',
-                            APP_LAYOUT_SCRIPT, V3_UNIFIED_SHELL_SCRIPT, "patch_v3_service.py", "patch_combined_service_startup.py", "combined_build_evidence.py", "run_issue25_rendering.py"},
+                            APP_LAYOUT_SCRIPT, V3_UNIFIED_SHELL_SCRIPT, LOCALDEVVPN_DUALSTACK_SCRIPT, "patch_v3_service.py", "patch_combined_service_startup.py", "combined_build_evidence.py", "run_issue25_rendering.py"},
         )
 
     def test_patch_scripts_parse_and_are_idempotent(self):
         for name in REQUIRED_SCRIPTS | {LIVE_CONTAINER_SCRIPT, LIVE_CONTAINER_STARTUP_SCRIPT,
-                                        COMBINED_REFRESH_SCRIPT, EMBEDDED_KEYCHAIN_SCRIPT, "patch_combined_transport.py", "patch_refresh_result_bridge.py", APP_LAYOUT_SCRIPT, V3_UNIFIED_SHELL_SCRIPT}:
+                                        COMBINED_REFRESH_SCRIPT, EMBEDDED_KEYCHAIN_SCRIPT, "patch_combined_transport.py", "patch_refresh_result_bridge.py", APP_LAYOUT_SCRIPT, V3_UNIFIED_SHELL_SCRIPT, LOCALDEVVPN_DUALSTACK_SCRIPT}:
             path = SCRIPTS / name
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         self.assertIn(
@@ -107,6 +108,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertIn("builder/scripts/" + COMBINED_REFRESH_SCRIPT, live_workflow)
         self.assertIn("builder/scripts/patch_app_layout.py", live_workflow)
         self.assertIn("builder/scripts/" + V3_UNIFIED_SHELL_SCRIPT, live_workflow)
+        self.assertIn("builder/scripts/" + LOCALDEVVPN_DUALSTACK_SCRIPT, live_workflow)
         standalone_workflow = (ROOT / ".github/workflows/build-current.yml").read_text(encoding="utf-8")
         self.assertIn("builder/scripts/patch_app_layout.py", standalone_workflow)
         contract = (SCRIPTS / COMBINED_REFRESH_SCRIPT).read_text(encoding="utf-8")
