@@ -236,6 +236,32 @@ class RefreshHandler: NSObject {
     }
     fileprivate func completedRefresh(_ error: String?, runID: String, verification: Data?, id: UUID) {
         guard launchID == id, refreshContinuation != nil, refreshRunID == runID else { return }
+
+        // SIDESTORE_TRANSPORT_DIAGNOSTICS_IMPORT_V1
+        if let verification,
+           verification.count <= 262144,
+           let payload = try? PropertyListSerialization.propertyList(
+               from: verification,
+               format: nil
+           ) as? [String: Any],
+           let diagnostics = payload["liveContainerTransportDiagnostics"] as? [String: Any],
+           diagnostics["version"] as? Int == 1,
+           diagnostics["run_id"] as? String == runID,
+           let lines = diagnostics["lines"] as? [String],
+           !lines.isEmpty,
+           lines.count <= 64,
+           lines.allSatisfy({ $0.utf8.count <= 2048 }),
+           let defaults = UserDefaults(suiteName: "group.com.SideStore.SideStore") {
+            defaults.set(
+                [
+                    "version": 1,
+                    "run_id": runID,
+                    "lines": lines
+                ],
+                forKey: "liveContainerTransportDiagnostics"
+            )
+        }
+
         if let error {
             if let defaults = UserDefaults(suiteName: "group.com.SideStore.SideStore") {
                 CombinedVerification.clearUncertainty(defaults, runID: runID)

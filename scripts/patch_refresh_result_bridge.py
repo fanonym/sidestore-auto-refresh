@@ -61,7 +61,7 @@ CLIENT = r'''
             return
         }
         var payload: [String: Any] = [:]
-        for key in ["liveContainerAutoRefreshVerification", "liveContainerAutoRefreshHostHandoff", "liveContainerAutoRefreshHostHandoffRunID", "liveContainerAutoRefreshHostHandoffStartedAt", "liveContainerAutoRefreshHostPreviousExpiration"] {
+        for key in ["liveContainerAutoRefreshVerification", "liveContainerAutoRefreshHostHandoff", "liveContainerAutoRefreshHostHandoffRunID", "liveContainerAutoRefreshHostHandoffStartedAt", "liveContainerAutoRefreshHostPreviousExpiration", "liveContainerTransportDiagnostics"] {
             if let value = defaults.object(forKey: key) { payload[key] = value }
         }
         do {

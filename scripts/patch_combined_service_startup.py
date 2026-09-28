@@ -145,7 +145,7 @@ void LCLaunchServiceExtension(NSExtension *extension, NSExtensionItem *item, voi
 ''')
     def client(text):
         text = replace(text, '            let data = try PropertyListSerialization.data(fromPropertyList: payload, format: .binary, options: 0)',
-            '            payload = CombinedVerification.sanitized(payload, runID: runID)\n            let data = try PropertyListSerialization.data(fromPropertyList: payload, format: .binary, options: 0)')
+            '            let transportDiagnostics = payload["liveContainerTransportDiagnostics"]\n            payload = CombinedVerification.sanitized(payload, runID: runID)\n            if let diagnostics = transportDiagnostics as? [String: Any],\n               diagnostics["version"] as? Int == 1,\n               diagnostics["run_id"] as? String == runID,\n               let lines = diagnostics["lines"] as? [String],\n               !lines.isEmpty,\n               lines.count <= 64,\n               lines.allSatisfy({ $0.utf8.count <= 2048 }) {\n                payload["liveContainerTransportDiagnostics"] = [\n                    "version": 1,\n                    "run_id": runID,\n                    "lines": lines\n                ]\n            }\n            let data = try PropertyListSerialization.data(fromPropertyList: payload, format: .binary, options: 0)')
         text = replace(text, '"SideStore could not encode installation results: " + error.localizedDescription',
             'CombinedFailure.capture(error, operation: "refresh", stage: .refreshVerification, id: runID).encodedString')
         for old in ['reportRefreshResult(error.localizedDescription, server: server)',
