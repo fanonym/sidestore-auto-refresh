@@ -7,12 +7,24 @@ root = Path(sys.argv[1]).resolve()
 path = root / "Dependencies/minimuxer/Sources/Services/DeviceConnectionManager.swift"
 text = path.read_text(encoding="utf-8")
 
-old_filter = '''                !$0.interfaceAddresses.v4.isEmpty && $0.interfaceAddresses.v6.isEmpty'''
-new_filter = '''                !$0.interfaceAddresses.v4.isEmpty'''
+old_filter = "                !$0.interfaceAddresses.v4.isEmpty && $0.interfaceAddresses.v6.isEmpty"
+new_filter = "                !$0.interfaceAddresses.v4.isEmpty"
 
-if old_filter in text:
-    text = text.replace(old_filter, new_filter, 1)
-elif new_filter not in text:
+lines = text.splitlines(keepends=True)
+changed = False
+
+for index, line in enumerate(lines):
+    content = line.rstrip("\r\n")
+    newline = line[len(content):]
+
+    if content.rstrip(" \t") == old_filter:
+        lines[index] = new_filter + newline
+        changed = True
+        break
+
+if changed:
+    text = "".join(lines)
+elif not any(line.rstrip("\r\n").rstrip(" \t") == new_filter for line in lines):
     raise SystemExit("Expected LocalDevVPN IPv4/IPv6 filter not found")
 
 old_comment = "// Device connection strictly operates on IPv4 utun tunnels only"
