@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import re
 
 root = Path(sys.argv[1]).resolve()
 
@@ -46,6 +47,13 @@ if marker not in text:
         raise SystemExit("Expected candidate probe block not found")
 
     text = text.replace(old_probe, new_probe, 1)
+
+# Keep generated Swift free of trailing whitespace on the modified filter line.
+text = re.sub(
+    r'(?m)^(\\s*!\\$0\\.interfaceAddresses\\.v4\\.isEmpty)[ \\t]+$',
+    r'\\1',
+    text,
+)
 
 path.write_text(text, encoding="utf-8")
 
