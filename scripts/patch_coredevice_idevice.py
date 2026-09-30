@@ -170,10 +170,8 @@ fn transport_log(message: &str) {
 
     if MARKER in text:
         required = [
-            "HeartbeatClient::connect",
             "idevice_set_transport_log_callback",
             "pub unsafe extern \"C\" fn lockdown_diag_rust_log",
-            "tunnel_heartbeat_is_active",
             ".min(1340)",
             "TUNNEL_RSD_HANDSHAKE_PASS",
         ]
@@ -184,28 +182,9 @@ fn transport_log(message: &str) {
 
     state = r'''
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::task::JoinHandle;
 
 ''' + owned_logger + r'''
 
-static ACTIVE_HEARTBEAT: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
-static HEARTBEAT_IS_ACTIVE: AtomicBool = AtomicBool::new(false);
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tunnel_heartbeat_is_active() -> bool {
-    HEARTBEAT_IS_ACTIVE.load(Ordering::SeqCst)
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tunnel_heartbeat_stop() {
-    let mut heartbeat = ACTIVE_HEARTBEAT.lock().unwrap();
-    if let Some(handle) = heartbeat.take() {
-        handle.abort();
-    }
-    HEARTBEAT_IS_ACTIVE.store(false, Ordering::SeqCst);
-    transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_STOPPED");
-}
 '''
     text = replace_once(
         text,
@@ -230,46 +209,6 @@ pub unsafe extern "C" fn tunnel_heartbeat_stop() {
 
     new = r'''        let provider_ref: &dyn IdeviceProvider = unsafe { &*(*lockdown_provider).0 };
 
-        unsafe { tunnel_heartbeat_stop() };
-        use idevice::heartbeat::HeartbeatClient;
-        let mut heartbeat = match HeartbeatClient::connect(provider_ref).await {
-            Ok(client) => {
-                transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_CONNECT_PASS");
-                client
-            }
-            Err(error) => {
-                transport_log(&format!("[SIDESTORE_COREDEVICE] HEARTBEAT_CONNECT_FAIL error={error}"));
-                return Err(IdeviceError::InternalError(format!(
-                    "CoreDevice heartbeat connection failed: {error}"
-                )));
-            }
-        };
-
-        HEARTBEAT_IS_ACTIVE.store(true, Ordering::SeqCst);
-        let heartbeat_task = tokio::spawn(async move {
-            loop {
-                match heartbeat.get_marco(60).await {
-                    Ok(_) => {
-                        if let Err(error) = heartbeat.send_polo().await {
-                            transport_log(&format!(
-                                "[SIDESTORE_COREDEVICE] HEARTBEAT_POLO_FAIL error={error}"
-                            ));
-                            break;
-                        }
-                    }
-                    Err(error) => {
-                        transport_log(&format!(
-                            "[SIDESTORE_COREDEVICE] HEARTBEAT_MARCO_FAIL error={error}"
-                        ));
-                        break;
-                    }
-                }
-            }
-            HEARTBEAT_IS_ACTIVE.store(false, Ordering::SeqCst);
-        });
-        *ACTIVE_HEARTBEAT.lock().unwrap() = Some(heartbeat_task);
-
-        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
         transport_log("[SIDESTORE_COREDEVICE] TUNNEL_COREDEVICE_CONNECT_START");
         let proxy = match tokio::time::timeout(
             std::time::Duration::from_secs(20),
@@ -282,11 +221,9 @@ pub unsafe extern "C" fn tunnel_heartbeat_stop() {
                 proxy
             }
             Ok(Err(error)) => {
-                unsafe { tunnel_heartbeat_stop() };
                 return Err(error);
             }
             Err(_) => {
-                unsafe { tunnel_heartbeat_stop() };
                 return Err(IdeviceError::InternalError(
                     "CoreDeviceProxy connect timed out after 20 seconds".into(),
                 ));
@@ -298,7 +235,6 @@ pub unsafe extern "C" fn tunnel_heartbeat_stop() {
         let mut adapter = match proxy.create_software_tunnel() {
             Ok(adapter) => adapter,
             Err(error) => {
-                unsafe { tunnel_heartbeat_stop() };
                 return Err(IdeviceError::InternalError(format!(
                     "CoreDevice software tunnel failed: {error}"
                 )));
@@ -323,11 +259,9 @@ pub unsafe extern "C" fn tunnel_heartbeat_stop() {
         {
             Ok(Ok(stream)) => stream,
             Ok(Err(error)) => {
-                unsafe { tunnel_heartbeat_stop() };
                 return Err(IdeviceError::InternalError(format!("RSD connect failed: {error}")));
             }
             Err(_) => {
-                unsafe { tunnel_heartbeat_stop() };
                 return Err(IdeviceError::InternalError(
                     "RSD connect timed out after 12 seconds".into(),
                 ));
@@ -342,11 +276,9 @@ pub unsafe extern "C" fn tunnel_heartbeat_stop() {
         {
             Ok(Ok(handshake)) => handshake,
             Ok(Err(error)) => {
-                unsafe { tunnel_heartbeat_stop() };
                 return Err(error);
             }
             Err(_) => {
-                unsafe { tunnel_heartbeat_stop() };
                 return Err(IdeviceError::InternalError(
                     "RSD handshake timed out after 15 seconds".into(),
                 ));
@@ -357,22 +289,7 @@ pub unsafe extern "C" fn tunnel_heartbeat_stop() {
     text = replace_once(text, old, new, "CoreDevice tunnel implementation")
     path.write_text(text, encoding="utf-8")
 
-    free_path = root / "ffi" / "src" / "core_device_proxy.rs"
-    free_text = free_path.read_text(encoding="utf-8")
-    hook = "crate::tunnel_provider::tunnel_heartbeat_stop();"
-    if hook not in free_text:
-        free_text = replace_once(
-            free_text,
-            """    if !handle.is_null() {
-        tracing::debug!("Freeing adapter");
-        let _ = unsafe { Box::from_raw(handle) };""",
-            """    if !handle.is_null() {
-        tracing::debug!("Freeing adapter");
-        crate::tunnel_provider::tunnel_heartbeat_stop();
-        let _ = unsafe { Box::from_raw(handle) };""",
-            "heartbeat teardown on adapter free",
-        )
-        free_path.write_text(free_text, encoding="utf-8")
+
 
 
 def patch_jktcp_dependency(root: Path, jktcp_root: Path) -> None:
@@ -398,10 +315,8 @@ def verify(root: Path) -> None:
         ],
         root / "ffi" / "src" / "tunnel_provider.rs": [
             MARKER,
-            "HeartbeatClient::connect",
             "idevice_set_transport_log_callback",
             "pub unsafe extern \"C\" fn lockdown_diag_rust_log",
-            "tunnel_heartbeat_is_active",
             ".min(1340)",
             "TUNNEL_RSD_HANDSHAKE_PASS",
         ],

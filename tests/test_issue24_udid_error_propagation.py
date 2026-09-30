@@ -62,21 +62,23 @@ class Issue24UdidErrorPropagationTests(SourceFixture):
             self.assertIn("case .createCoreDevice(let reason)", self.wrapper_text)
             self.assertRegex(self.wrapper_text, r"case \.createCoreDevice\(let reason\)[^:]*:\s*return \.noDevice\(reason: reason\)")
 
-    def test_requirement3_heartbeat_failure_remains_transport_heartbeat_error(self):
-        """3. Heartbeat failures remain transport/heartbeat errors (.connect)."""
+    def test_requirement3_coredevice_transport_does_not_require_custom_heartbeat_gate(self):
+        """3. CoreDevice transport must not depend on the removed custom Rust heartbeat gate."""
         ensure_core = function(self.gateway_text, "ensureCoreDeviceConnection")
-        self.assertIn("guard tunnel_heartbeat_is_active() else {", ensure_core)
-        self.assertIn('debugLog("[SIDESTORE_COREDEVICE] HEARTBEAT_FAIL")', ensure_core)
-        self.assertIn('throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice heartbeat is inactive")', ensure_core)
 
-        # Verify runIdeviceCheckingVPN maps heartbeat failure to MinimuxerError.connect
-        run_vpn = function(self.impl_text, "runIdeviceCheckingVPN")
-        self.assertIn('if err.reason.lowercased().contains("heartbeat") {', run_vpn)
-        self.assertIn("throw MinimuxerError.connect(err.reason)", run_vpn)
+        self.assertIn(
+            "if adapter != nil, handshake != nil, coreDeviceProvider != nil {",
+            ensure_core,
+        )
+        self.assertNotIn("tunnel_heartbeat_is_active()", ensure_core)
+        self.assertNotIn("HEARTBEAT_FAIL", ensure_core)
+        self.assertNotIn("CoreDevice heartbeat is inactive", ensure_core)
 
-        # Verify MinimuxerWrapper maps .connect to .noDevice, never .invalidPairingFile
-        if self.wrapper_text:
-            self.assertIn(".connect(let reason)", self.wrapper_text)
+        # Upstream heartbeat path remains available through performHeartbeat().
+        heartbeat = function(self.gateway_text, "syncPerformHeartbeat")
+        self.assertIn("performWithEitherService(", heartbeat)
+        self.assertIn("heartbeat_connect_rsd", heartbeat)
+        self.assertIn("heartbeat_connect", heartbeat)
 
     def test_requirement4_rsd_service_failure_remains_rsd_service_error(self):
         """4. RSD service failures remain RSD/service errors (.noService / .createLockdown)."""

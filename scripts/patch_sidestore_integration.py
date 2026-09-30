@@ -440,14 +440,13 @@ func sideStoreTransportLog(_ message: UnsafePointer<CChar>?) {
                             "        ffiQueue.setSpecific(key: ffiQueueKey, value: true)",
                             "queue-aware invalidation initialization")
     ensure_coredevice = r'''    private func ensureCoreDeviceConnection() throws {
-        if adapter != nil, handshake != nil, coreDeviceProvider != nil,
-           tunnel_heartbeat_is_active() {
+        if adapter != nil, handshake != nil, coreDeviceProvider != nil {
             verboseLog("[SIDESTORE_COREDEVICE] TRANSPORT_REUSE")
             return
         }
 
         if adapter != nil || handshake != nil || coreDeviceProvider != nil {
-            debugLog("[SIDESTORE_COREDEVICE] TRANSPORT_STALE heartbeat_active=\(tunnel_heartbeat_is_active())")
+            debugLog("[SIDESTORE_COREDEVICE] TRANSPORT_STALE incomplete_coredevice_handles")
             releaseTransport()
         }
 
@@ -512,11 +511,6 @@ func sideStoreTransportLog(_ message: UnsafePointer<CChar>?) {
             releaseTransport()
             debugLog("[SIDESTORE_COREDEVICE] TRANSPORT_CREATE_FAIL reason=incomplete_handles")
             throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice tunnel returned incomplete handles")
-        }
-        guard tunnel_heartbeat_is_active() else {
-            releaseTransport()
-            debugLog("[SIDESTORE_COREDEVICE] HEARTBEAT_FAIL")
-            throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice heartbeat is inactive")
         }
         debugLog("[SIDESTORE_COREDEVICE] TRANSPORT_CREATE_PASS")
     }
@@ -986,28 +980,6 @@ func sideStoreTransportLog(_ message: UnsafePointer<CChar>?) {
     )
     text = replace_once(text, "            free(outResult)\n", "", "remove incorrect browse free")
 
-    old_heartbeat = """       debugLog("[IdeviceGateway] performHeartbeat() called, interval: \\(interval)")
-       try verifyInitialized()
-       try performWithEitherService(
-"""
-    new_heartbeat = """       debugLog("[IdeviceGateway] performHeartbeat() called, interval: \\(interval)")
-       try verifyInitialized()
-       if !isRPPairing {
-           try ensureCoreDeviceConnection()
-           guard tunnel_heartbeat_is_active() else {
-               throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice heartbeat is inactive")
-           }
-           newInterval.pointee = 60
-           verboseLog("[SIDESTORE_COREDEVICE] HEARTBEAT_ACTIVE")
-           return
-       }
-       try performWithEitherService(
-"""
-    if modern:
-        new_heartbeat = new_heartbeat.replace("!isRPPairing", "usesCoreDevice").replace(
-            "           try ensureCoreDeviceConnection()\n", "")
-    text = replace_once(text, old_heartbeat, new_heartbeat, "avoid duplicate heartbeat client")
-
     text = replace_once(
         text,
         """        var err: UnsafeMutablePointer<IdeviceFfiError>? = nil
@@ -1108,7 +1080,6 @@ def verify_gateway(text: str) -> None:
         "coreDeviceProvider",
         "idevice_set_transport_log_callback(sideStoreTransportLog)",
         "tunnel_create_usb(provider, &adapter, &handshake)",
-        "tunnel_heartbeat_is_active()",
         "withFFIDispatch(on: self.ffiQueue)",
         "ffiQueue.sync",
         "SIDESTORE_STAGE_PASS",

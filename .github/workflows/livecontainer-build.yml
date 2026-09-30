@@ -195,7 +195,6 @@ jobs:
             idevice/ffi/src/tunnel_provider.rs idevice/idevice/src/tunnel.rs
           grep -Fq 'packet.extend_from_slice(CDTUNNEL_MAGIC)' idevice/idevice/src/tunnel.rs
           grep -Fq 'effective_mss = negotiated_mtu.saturating_sub(60).min(1340)' idevice/ffi/src/tunnel_provider.rs
-          grep -Fq 'HeartbeatClient::connect' idevice/ffi/src/tunnel_provider.rs
           grep -Fq 'run_sync_local(async move { fd.write_entire(data_slice).await })' idevice/ffi/src/afc.rs
           grep -Fq 'let data = unsafe { Box::from_raw(slice) };' idevice/ffi/src/lib.rs
 
@@ -219,7 +218,6 @@ jobs:
           test -f target/aarch64-apple-ios/release/libidevice_ffi.a
           test -f ffi/idevice.h
           grep -Fq 'tunnel_create_usb' ffi/idevice.h
-          grep -Fq 'tunnel_heartbeat_is_active' ffi/idevice.h
           grep -Fq 'idevice_set_transport_log_callback' ffi/idevice.h
           xcrun nm -arch arm64 -g target/aarch64-apple-ios/release/libidevice_ffi.a \
             >/tmp/current-idevice-symbols.txt 2>/tmp/current-nm-reader-warnings.txt || true

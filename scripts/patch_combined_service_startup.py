@@ -224,7 +224,6 @@ def patch_transport(root):
         "CoreDevice tunnel failed:": "cdTunnel",
         "CoreDevice tunnel returned incomplete handles": "cdTunnel",
         "CoreDevice transport returned incomplete handles": "coreDevice",
-        "CoreDevice heartbeat is inactive": "heartbeat",
         "Lockdownd RSD connection failed": "rsdService",
         "Lockdownd client is nil after connect": "lockdownConnection",
         "Querying UniqueDeviceID failed": "uniqueDeviceID",
