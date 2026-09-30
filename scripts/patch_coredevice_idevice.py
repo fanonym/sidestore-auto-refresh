@@ -297,14 +297,25 @@ def patch_jktcp_dependency(root: Path, jktcp_root: Path) -> None:
     text = path.read_text(encoding="utf-8")
     relative = os.path.relpath(jktcp_root, path.parent).replace("\\", "/")
     local = f'jktcp = {{ path = "{relative}", optional = true, default-features = false }}'
-    if local not in text:
-        text = replace_once(
-            text,
-            'jktcp = { git = "https://github.com/SideStore/jktcp", branch = "master", optional = true, default-features = false }',
-            local,
-            "local jktcp dependency",
+
+    if local in text:
+        return
+
+    candidates = (
+        'jktcp = { git = "https://github.com/SideStore/jktcp", branch = "master", optional = true, default-features = false }',
+        'jktcp = { version = "0.1.7", optional = true, default-features = false }',
+    )
+
+    matches = [candidate for candidate in candidates if candidate in text]
+
+    if len(matches) != 1:
+        die(
+            "local jktcp dependency: expected exactly one supported anchor, "
+            f"found {len(matches)}"
         )
-        path.write_text(text, encoding="utf-8")
+
+    text = text.replace(matches[0], local, 1)
+    path.write_text(text, encoding="utf-8")
 
 
 def verify(root: Path) -> None:
