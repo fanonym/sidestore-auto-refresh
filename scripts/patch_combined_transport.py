@@ -221,6 +221,29 @@ def patch(minimuxer: Path):
                             "withFFIDispatch(on: self.ffiQueue) {\n            defer { if self.batchCount == 0 { self.releaseTransport() } }")
     edit(gateway, "COMBINED_COREDEVICE_BATCH_V1", gateway_state)
 
+    # idevice v0.1.66 adds an optional peer-device output parameter to
+    # rppairing_pair_network(). Keep the pinned minimuxer source compatible
+    # with the locally injected v0.1.66 XCFramework without consuming it.
+    gateway_text = gateway.read_text(encoding="utf-8")
+    old_pair_call = """                    },
+                    pinContextPtr
+                )"""
+    new_pair_call = """                    },
+                    pinContextPtr,
+                    nil
+                )"""
+    if new_pair_call not in gateway_text:
+        count = gateway_text.count(old_pair_call)
+        if count != 1:
+            raise SystemExit(
+                "rppairing_pair_network compatibility: expected exactly "
+                f"one legacy call, found {count}"
+            )
+        gateway.write_text(
+            gateway_text.replace(old_pair_call, new_pair_call, 1),
+            encoding="utf-8",
+        )
+
     mux_api = minimuxer / "Sources/MinimuxerApi.swift"
     edit(mux_api, "func beginTransportBatch()", lambda text: replace_once(
         text, "public protocol MinimuxerAPI: AnyObject {", '''public protocol MinimuxerAPI: AnyObject {
@@ -482,7 +505,8 @@ def verify(root):
         "DeviceGateway/idevice/IdeviceGateway.swift": ["tunnel_create_usb(provider, &adapter, &handshake)",
             "COMBINED_COREDEVICE_BATCH_V1", "usesCoreDevice", "afc_client_connect_rsd",
             "installation_proxy_connect_rsd", "syncInstallAppBundle", "STAGED_FILE_SIZE_MATCH",
-            "[SIDESTORE_COREDEVICE] FETCH_UDID_START"],
+            "[SIDESTORE_COREDEVICE] FETCH_UDID_START",
+            "pinContextPtr,\n                    nil"],
         "Common/PairingFile.swift": ["Composite records must use Lockdown/CoreDevice"],
         "Sources/MinimuxerImpl.swift": ["configureRefreshTransport", "hasActiveTransportBatch",
                                         "deviceUDID_present="],
