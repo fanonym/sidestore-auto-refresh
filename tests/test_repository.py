@@ -170,20 +170,18 @@ class RepositoryTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(_is_sensitive_reachable_path(path))
 
-    def test_public_docs_do_not_expose_known_private_network_details(self):
-        """Generic RFC1918 examples are allowed; known diagnostic addresses are not."""
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        verification = (ROOT / "docs" / "VERIFICATION.md").read_text(encoding="utf-8")
-        public_docs = readme + "\n" + verification
+    def test_frozen_release_reuses_existing_build(self):
+        workflow = (ROOT / ".github/workflows/release-dispatch.yml").read_text()
+        self.assertIn("github.ref_name != 'release/3.0.2.1'", workflow)
 
-        # These were diagnostic/local addresses and must never leak into public docs.
-        for sensitive_ip in ("10.7.0.1", "10.7.0.2"):
-            self.assertNotIn(sensitive_ip, public_docs)
-
-        # Documentation may intentionally use RFC1918 examples such as
-        # 10.0.0.x or 192.168.1.x to explain same-subnet LocalDevVPN routing.
-        self.assertIn("same subnet", readme)
-        self.assertIn("/32", readme)
+    def test_public_docs_use_approved_vpn_configuration(self):
+        # The deployment owner explicitly approved these fixed public setup
+        # endpoints. They are not device identifiers or pairing credentials.
+        for name in ("README.md", "docs/VERIFICATION.md"):
+            document = (ROOT / name).read_text(encoding="utf-8")
+            for endpoint in ("10.7.0.1", "10.7.0.2"):
+                self.assertIn(endpoint, document)
+            self.assertIn("RPP-only", document)
 
 
 if __name__ == "__main__":

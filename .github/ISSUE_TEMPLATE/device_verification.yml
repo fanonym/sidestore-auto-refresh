@@ -1,5 +1,5 @@
 name: Device verification
-description: Report a successful or failed real-device CoreDevice / refresh compatibility test
+description: Report a successful or failed real-device refresh compatibility test
 title: "[Device]: "
 body:
   - type: markdown
@@ -42,7 +42,7 @@ body:
   - type: dropdown
     id: localdevvpn_route
     attributes:
-      label: LocalDevVPN same-subnet /32 configuration
+      label: LocalDevVPN configuration (3.0.2.1 uses Tunnel 10.7.0.1 / Peer 10.7.0.2)
       options:
         - Configured and connected
         - Configured but LocalDevVPN would not stay connected
@@ -54,7 +54,7 @@ body:
   - type: dropdown
     id: manual
     attributes:
-      label: Manual Refresh All over CoreDevice
+      label: Refresh All Apps (report pairing mode and build in Notes)
       options:
         - Success
         - Failed
@@ -76,7 +76,7 @@ body:
   - type: dropdown
     id: scheduled
     attributes:
-      label: Native scheduled refresh result
+      label: Shortcuts refresh result (3.0.2.1; internal LC Auto-refresh unused)
       options:
         - Triggered and completed successfully
         - Triggered but failed
@@ -89,7 +89,7 @@ body:
     id: markers
     attributes:
       label: Non-sensitive evidence
-      description: For a full autonomous success, include the relevant redacted TRIGGER, AUTH_PREFLIGHT_PASS, OPERATION_START, and COMPLETE success=true markers.
+      description: For 3.0.2.1, report the remaining signing lifetime on LC Home after refresh; LC logs need not populate. Distinguish Shortcuts execution from internal scheduler tests on older builds.
       render: text
 
   - type: textarea

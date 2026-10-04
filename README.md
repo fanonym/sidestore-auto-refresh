@@ -1,13 +1,69 @@
 # LiveContainer + SideStore Auto-Refresh
 
-[![Combined Build](https://github.com/NRG-Wardog/sidestore-auto-refresh/actions/workflows/livecontainer-build.yml/badge.svg)](https://github.com/NRG-Wardog/sidestore-auto-refresh/actions/workflows/livecontainer-build.yml)
+[![Combined Build](https://github.com/fanonym/sidestore-auto-refresh/actions/workflows/livecontainer-build.yml/badge.svg?branch=release%2F3.0.2.1)](https://github.com/fanonym/sidestore-auto-refresh/actions/runs/36748073104)
 [![Standalone Build](https://github.com/NRG-Wardog/sidestore-auto-refresh/actions/workflows/build-publish-v1.0.3-r6.yml/badge.svg?branch=release%2Fv1.0.3)](https://github.com/NRG-Wardog/sidestore-auto-refresh/actions/workflows/build-publish-v1.0.3-r6.yml)
-[![Release](https://img.shields.io/github/v/release/NRG-Wardog/sidestore-auto-refresh)](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/latest)
+[![Release](https://img.shields.io/github/v/release/fanonym/sidestore-auto-refresh)](https://github.com/fanonym/sidestore-auto-refresh/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 An independent, open-source build based on **SideStore** and **LiveContainer**, focused on reliable same-device refresh, clear scheduling, verification, and beginner-friendly setup.
 
 Two variants are available: **standalone SideStore** and **LiveContainer with this modified SideStore embedded**. A computer is needed for the initial install and pairing setup. After that, the stable refresh path is designed to run on the iPhone without keeping the computer connected.
+
+## Stable baseline 3.0.2.1
+
+This fork freezes the verified iPad deployment on `release/3.0.2.1`.
+Use [3.0.2.1 release notes](docs/RELEASE_NOTES_v3.0.2.1.md) for exact source pins,
+existing IPA identity and the device test matrix. The release reuses build
+[36748073104](https://github.com/fanonym/sidestore-auto-refresh/actions/runs/36748073104);
+no new application build is needed for this documentation closure.
+
+Verified configuration:
+
+- Pairing: **RPP-only** (recommended).
+- LocalDevVPN Tunnel IP: **`10.7.0.1`**; Device/Peer IP: **`10.7.0.2`**.
+- SideStore **Use Local VPN: ON**.
+- **Remote Pairing Port Override: `0`**.
+- SideInstaller DNS may remain **Automatic** for normal operation.
+- Internal LiveContainer **Auto-refresh is OFF, unused and not recommended for this deployment**.
+
+These VPN endpoints stay the same across the verified Wi-Fi networks and hotspot.
+True Hairpin and Lockdown/CoreDevice on port `62078` are historical/experimental
+paths, not the recommended 3.0.2.1 configuration. Their implementation remains
+in the frozen source; no network-layer changes are part of this release closure.
+
+Home Wi-Fi **PASS**, Wi-Fi 2 **PASS**, hotspot **PASS**, sleep/wake **PASS**,
+and Shortcuts refresh **PASS**, as reported by the deployment owner. A hotspot
+means the iPad joins the hotspot over Wi-Fi; this is not cellular-only proof.
+Check the remaining signing lifetime on **LC Home** after refresh. LC logs do
+not populate in this deployment and are not a required verification source.
+
+## Recommended Refresh via Shortcuts
+
+Use iPadOS Shortcuts for the verified deployment:
+
+1. Optionally disconnect the specific active external VPN (WireGuard or CyberGhost).
+2. **Disable LocalDevVPN**.
+3. **Wait 2 seconds**.
+4. **Enable LocalDevVPN**.
+5. **Wait 10 seconds**.
+6. Run **Refresh All Apps**.
+7. **Wait 10 seconds**.
+8. **Disable LocalDevVPN**.
+
+Configure an automation with **Time of Day**, repeat **Daily**, **Run Immediately**,
+and **Show When Run: OFF**. Notifications are optional. The deployment owner
+verified scheduled refresh after sleep/wake with this setup.
+
+LocalDevVPN needs to be active only during the refresh window. Restore
+WireGuard/CyberGhost manually as needed afterwards. Confirm the remaining
+signing lifetime on LC Home; launching the shortcut alone is not proof of refresh.
+
+The verified refresh path is:
+
+```text
+Shortcuts -> Refresh All Apps -> RPPairing -> RSD
+    -> provisioning/profile install -> REFRESH_VERIFIED
+```
 
 ## v3 unified combined application
 
@@ -17,9 +73,9 @@ SideStore commands run in its existing LiveProcess service. Authentication, cert
 
 Combined v3 uses LiveContainerSupport SideStore `ff25922e5c13ccfafd83bda5092910d848ebd409`, upstream minimuxer `98c3c79982f813878e922ab42f9545314a700f0c` and SideSign `a731c0d5a9a6617c7b385ae493e07ffb7f81cd5d`. CI verifies that GSA fix `35993d7f68950ce00d6bf1fd0fbcaa7bef51dc9c` is in SideSign's ancestry. There is no independent SideSign override or authentication backport. Standalone is unchanged by this migration.
 
-For v3 setup, use **Settings → Account and Signing → Sign In / Authenticate**, then **Settings → SideStore → Import Pairing File** if needed. Configure LocalDevVPN, run **Refresh**, and inspect verification/history before enabling its schedule. Apps' per-app Refresh actions also route to that tab. Guest Return, Start Collapsed, custom colors and all three layouts retain their existing preference keys.
+For v3 setup, use **Settings → Account and Signing → Sign In / Authenticate**, then **Settings → SideStore → Import Pairing File** if needed. Configure LocalDevVPN, run **Refresh**, and check the remaining lifetime on LC Home. Leave internal Auto-refresh OFF and use the Shortcuts workflow above. Apps' per-app Refresh actions also route to that tab. Guest Return, Start Collapsed, custom colors and all three layouts retain their existing preference keys.
 
-Startup-recovery candidates are built on `fix/v3-startup-errors`; use the full builder SHA and matching CI evidence attached to the draft, not a mutable branch as package identity. Settings > Build Candidate reports the product line, builder commit and run. Install over the existing combined app with matching signing identity and app identifiers; no reset is part of the upgrade. List, Grid and Compact List retain `LCAppLayoutStyle`. Physical-device acceptance is separate from CI evidence. These candidates remain draft prereleases, not a v3 production-readiness announcement.
+**Historical startup investigation:** Startup-recovery candidates were built on `fix/v3-startup-errors`; use the full builder SHA and matching CI evidence attached to the draft, not a mutable branch as package identity. Settings > Build Candidate reports the product line, builder commit and run. Install over the existing combined app with matching signing identity and app identifiers; no reset is part of the upgrade. List, Grid and Compact List retain `LCAppLayoutStyle`. Physical-device acceptance is separate from CI evidence. Those historical draft candidates have separate identities; the frozen 3.0.2.1 baseline is identified above.
 
 The [startup crash investigation](docs/COMBINED_STARTUP_CRASH.md) records the exact binary match and remaining device uncertainty. Both corrected combined lines include Issue #24 error propagation; standalone packages retain their separate provenance. Upstream GSA integration does not establish that all login failures or HTTP 429 are resolved.
 
@@ -43,7 +99,7 @@ It adds:
 - persistent refresh history
 - bounded retry and recovery logic
 - explicit refresh verification
-- a same-device **LocalDevVPN + CoreDevice** transport path
+- a same-device **LocalDevVPN + RPP-only** refresh path for 3.0.2.1
 - a combined LiveContainer build with the modified SideStore already embedded
 - guest Return controls in the combined build
 - **Start Collapsed** and **custom Return button colors** in combined v2.1.0
@@ -81,6 +137,8 @@ These screenshots show the earlier standalone SideStore v1.0.2 interface. The cu
 
 ## Quick navigation
 
+- [Stable 3.0.2.1 configuration](#stable-baseline-3021)
+- [Recommended Refresh via Shortcuts](#recommended-refresh-via-shortcuts)
 - [Choose a build](#which-version-should-i-download)
 - [What is different from the original projects?](#how-this-project-differs-from-the-original-projects)
 - [Recommended installer](#recommended-installer)
@@ -92,21 +150,15 @@ These screenshots show the earlier standalone SideStore v1.0.2 interface. The cu
 
 ## Which version should I download?
 
-| What you want | Use | Download |
-| --- | --- | --- |
-| Unified LiveContainer + SideStore (**Recommended**) | **Unified v3.0.1** | **[Download unified IPA](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/download/v3.0.1/LiveContainer-SideStore-AutoRefresh.ipa)** |
-| LiveContainer with the modified SideStore built in | **Combined v2.1.1** | **[Download combined IPA](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/download/v2.1.1/LiveContainer-SideStore-AutoRefresh.ipa)** |
-| SideStore only, with normal separately installed sideloaded apps | **Standalone v1.0.4** | **[Download standalone IPA](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/download/v1.0.4/SideStore.ipa)** |
+For this fork's verified deployment, use **3.0.2.1**, reusing the IPA from
+[build 36748073104](https://github.com/fanonym/sidestore-auto-refresh/actions/runs/36748073104).
+The [release notes](docs/RELEASE_NOTES_v3.0.2.1.md) identify its exact checksum.
+The frozen [3.0.2.1 release](https://github.com/fanonym/sidestore-auto-refresh/releases/tag/v3.0.2.1)
+provides the unchanged IPA and matching build evidence. SideStore is embedded;
+a separate SideStore installation is not required for this combined setup.
 
-If you want LiveContainer, install **Unified v3.0.1**. SideStore is already embedded inside it, so do not install a separate SideStore copy for the same combined setup.
-
-**Unified:** [v3.0.1 release](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/tag/v3.0.1)
-
-**Combined:** [v2.1.1 release](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/tag/v2.1.1) (previous combined line, still available)
-
-The next unified line, v3.0.2, is under development and not yet published. Its current scope and validation state are tracked in [v3.0.2 release notes](docs/RELEASE_NOTES_v3.0.2.md). v3.0.1 remains the recommended download.
-
-**Standalone:** [v1.0.4 release](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/tag/v1.0.4)
+Earlier upstream downloads and the v1/v2 instructions below are historical
+references, not the recommended 3.0.2.1 deployment procedure.
 
 ## What's new in v1.0.4 and v2.1.1?
 
@@ -161,7 +213,7 @@ The purpose of this repository is to add a specific refresh transport, schedulin
 
 | Area | Original / upstream behavior | This project adds or changes |
 | --- | --- | --- |
-| SideStore refresh | SideStore already resigns and refreshes apps | A patched same-device **LocalDevVPN + CoreDevice** refresh path, plus explicit transport diagnostics |
+| SideStore refresh | SideStore already resigns and refreshes apps | The recommended **LocalDevVPN + RPP-only** route in 3.0.2.1; historical CoreDevice diagnostics remain in source |
 | Scheduling | Upstream SideStore already has background refresh behavior | Explicit **six-hour, daily, and weekly** schedules, preferred time controls, persistent history, bounded retry, and deadline protection |
 | Verification | Normal upstream refresh state and results | Run-correlated verification so task launch or handoff is not treated as refresh success by itself |
 | Combined LiveContainer build | Upstream already offers LiveContainer + SideStore | Embeds this repository's modified SideStore and adds host-level refresh coordination, result bridging, startup/authentication fixes, and shared-Keychain handling |
@@ -180,7 +232,9 @@ The purpose of this repository is to add a specific refresh transport, schedulin
 
 Because the combined build modifies LiveContainer and contains embedded SideStore code, use the same trust model you would use for any modified LiveContainer build. This repository is open source, and you can [build it yourself](#build-it-yourself) if you prefer to verify the build path personally.
 
-## Setup at a glance
+## Historical v1/v2 setup at a glance
+
+For 3.0.2.1, use the stable configuration and Shortcuts sections above. The following installer and v1/v2 steps preserve earlier release instructions, including their different pairing, routing and scheduler assumptions.
 
 ```text
 Choose v1 or v2
@@ -444,7 +498,7 @@ Choose a schedule and verify the result in refresh history after the next run.
 
 The standalone build supports manual, six-hour, daily, and weekly refresh options. The selected time is not a guaranteed iOS alarm. Background execution is controlled by iOS.
 
-## Normal daily use
+## Historical v1/v2 daily use
 
 Once setup is working:
 
@@ -476,6 +530,17 @@ Do not install the standalone IPA over LiveContainer. Standalone-to-combined dat
 
 ## Troubleshooting
 
+For **3.0.2.1**, check RPP-only pairing, Tunnel `10.7.0.1`, Device/Peer
+`10.7.0.2`, Use Local VPN ON and Port Override `0`. Cycle LocalDevVPN with the
+Shortcuts delays above and disconnect a conflicting external VPN. Do not change
+the endpoints to match a new Wi-Fi subnet or switch to CoreDevice/62078.
+Check LC Home for the signing lifetime; empty LC logs are expected in this
+deployment. Keep internal LC Auto-refresh OFF. SideInstaller DNS can be Automatic.
+
+### Historical v1/v2 troubleshooting
+
+The following table applies to the older CoreDevice setup only.
+
 | Problem | Check this first |
 | --- | --- |
 | iLoader does not see the iPhone on Windows | Confirm Apple's device drivers are installed, reconnect USB, unlock the phone, and tap **Trust** |
@@ -496,7 +561,7 @@ For deeper investigation, see [Verification](docs/VERIFICATION.md), [Compatibili
 
 ## Features
 
-### Shared refresh features
+### Historical v1/v2 refresh features
 
 - same-device LocalDevVPN + CoreDevice refresh path
 - Free Apple Account / Personal Team support
@@ -553,6 +618,12 @@ These additional screenshots show the standalone SideStore refresh UI.
 
 ## Technical architecture
 
+The recommended 3.0.2.1 runtime is **Shortcuts → Refresh All Apps → RPPairing →
+RSD → provisioning/profile install → REFRESH_VERIFIED**. Internal scheduler and
+CoreDevice code remain present but are not the deployed operating procedure.
+
+### Historical CoreDevice architecture
+
 ```text
 LiveContainer triggers / embedded SideStore
     -> refresh coordination and eligibility
@@ -564,7 +635,7 @@ LiveContainer triggers / embedded SideStore
     -> correlated verification results and history
 ```
 
-The stable CoreDevice path preserves service TLS, contiguous CDTunnel writes, heartbeat during transport operations, packet-size and flow-control fixes, and corrected FFI ownership. Experimental cellular work is not part of the current stable product path.
+The historical CoreDevice implementation preserves service TLS, contiguous CDTunnel writes, heartbeat during transport operations, packet-size and flow-control fixes, and corrected FFI ownership. Experimental cellular work is not part of the current stable product path.
 
 ### App Layout architecture (Issue #17)
 
@@ -621,6 +692,13 @@ This separation keeps Issue #17 low risk: the renderer changes, while the app li
 
 ## Verification status
 
+For 3.0.2.1: home Wi-Fi, Wi-Fi 2, hotspot, sleep/wake and Shortcuts refresh
+are all owner-reported **PASS**. The IPA checksum was independently matched to
+the existing successful build during release closure. See the
+[baseline record](docs/RELEASE_NOTES_v3.0.2.1.md).
+
+### Historical v1/v2 evidence
+
 | Scope | Current evidence |
 | --- | --- |
 | Standalone v1.0.4 build and packaging | CI passed; published IPA checksum, arm64 executable, background-task configuration, and layout patch parsing verified |
@@ -667,7 +745,7 @@ This repository contains build-time patches rather than permanent vendored copie
 
 1. Fork the repository and enable GitHub Actions.
 2. Run **LiveContainer embedded SideStore build** for the combined IPA, or **Build Current SideStore** for standalone.
-3. Run the workflow on `main`.
+3. For reproducing 3.0.2.1, use the immutable builder commit `b9590618dac5a791d2faffa9365d00bbfaa50776`, not `main`. Release closure reuses the existing IPA and does not run this build procedure.
 4. Download the successful run artifact.
 5. Sign the resulting IPA with your own Apple Account / Personal Team before installing it.
 

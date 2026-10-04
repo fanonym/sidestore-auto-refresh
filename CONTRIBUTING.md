@@ -1,6 +1,16 @@
 # Contributing
 
-Thanks for helping improve the SideStore CoreDevice refresh path.
+The stable 3.0.2.1 deployment is frozen. See the [baseline](docs/RELEASE_NOTES_v3.0.2.1.md)
+and [Shortcuts workflow](README.md#recommended-refresh-via-shortcuts).
+Keep application and network code unchanged during this release closure.
+The recommended route is LocalDevVPN → RPPairing → RSD → provisioning/profile install.
+Internal LC Auto-refresh is disabled and unused. True Hairpin and CoreDevice/62078
+are historical/experimental paths for this deployment.
+
+## Historical transport contribution context
+
+The following CoreDevice guidance describes older standalone/combined releases,
+not the operating recommendation for 3.0.2.1.
 
 This repository contains build-time patches for pinned upstream SideStore dependencies. Contributions should preserve the current transport objective:
 

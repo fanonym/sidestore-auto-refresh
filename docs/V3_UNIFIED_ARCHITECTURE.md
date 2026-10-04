@@ -1,5 +1,12 @@
 # v3 unified LiveContainer + SideStore
 
+> **3.0.2.1 deployment:** See [the frozen baseline and test matrix](RELEASE_NOTES_v3.0.2.1.md)
+> and [recommended Shortcuts refresh](../README.md#recommended-refresh-via-shortcuts).
+> RPP-only pairing is recommended; internal LC Auto-refresh is unused. True Hairpin
+> and CoreDevice/62078 are historical/experimental, not this deployment's recommendation.
+> Older release evidence and pending issue-specific checks below retain their original scope;
+> they neither override the 3.0.2.1 configuration nor gain new PASS results from its refresh tests.
+
 ## Sources and patch model
 
 The combined workflow pins LiveContainer `12377cf3b91d51739a33f14a302e5f522b238593`
@@ -150,7 +157,16 @@ Manual/scheduled state, preferred time, retries, history, deadlines and correlat
 verification continue through the existing scheduler. Selected-app completion
 uses the same history without marking the host signing lifetime as verified.
 
-The stable route remains:
+For the frozen 3.0.2.1 deployment the recommended route is:
+
+`Shortcuts → Refresh All Apps → RPPairing → RSD → provisioning/profile install → REFRESH_VERIFIED`.
+
+Use Tunnel `10.7.0.1` / Device-Peer `10.7.0.2`, Use Local VPN ON and Port
+Override `0`. Internal LC scheduling is present in source but disabled and unused.
+The Setup Assistant's schedule requirement below describes existing implementation;
+it is not a reason to enable internal scheduling for this deployment.
+
+The historical/experimental CoreDevice route remains implemented:
 
 `Wi-Fi/LocalDevVPN → Lockdown → CoreDeviceProxy/TLS → CDTunnel → RSD → AFC/InstallationProxy`.
 

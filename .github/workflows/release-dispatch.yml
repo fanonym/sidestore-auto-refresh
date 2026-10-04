@@ -12,7 +12,8 @@ permissions:
 jobs:
   dispatch:
     # The v1.0.3 workflow owns its preflight, build and publication.
-    if: github.ref_name != 'release/v1.0.3'
+    # Freeze 3.0.2.1 using existing build 36748073104; documentation pushes must not rebuild.
+    if: github.ref_name != 'release/v1.0.3' && github.ref_name != 'release/3.0.2.1'
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch current SideStore build for this release branch

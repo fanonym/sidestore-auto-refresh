@@ -1,5 +1,12 @@
 # Issue 25 executable rendering evidence
 
+> **3.0.2.1 deployment:** See [the frozen baseline and test matrix](RELEASE_NOTES_v3.0.2.1.md)
+> and [recommended Shortcuts refresh](../README.md#recommended-refresh-via-shortcuts).
+> RPP-only pairing is recommended; internal LC Auto-refresh is unused. True Hairpin
+> and CoreDevice/62078 are historical/experimental, not this deployment's recommendation.
+> Older release evidence and pending issue-specific checks below retain their original scope;
+> they neither override the 3.0.2.1 configuration nor gain new PASS results from its refresh tests.
+
 `scripts/run_issue25_rendering.py` builds fixture applications for the iOS simulator
 from the **generated** `LCGridAppCell.swift`, `LCAppBanner.swift`,
 `LCAppBannerView.swift`, and layout enum. The UIKit/SwiftUI rendering components

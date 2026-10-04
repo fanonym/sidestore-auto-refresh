@@ -1,5 +1,12 @@
 # SideStore CoreDevice Auto-Refresh v1.0.3
 
+> **3.0.2.1 deployment:** See [the frozen baseline and test matrix](RELEASE_NOTES_v3.0.2.1.md)
+> and [recommended Shortcuts refresh](../README.md#recommended-refresh-via-shortcuts).
+> RPP-only pairing is recommended; internal LC Auto-refresh is unused. True Hairpin
+> and CoreDevice/62078 are historical/experimental, not this deployment's recommendation.
+> Older release evidence and pending issue-specific checks below retain their original scope;
+> they neither override the 3.0.2.1 configuration nor gain new PASS results from its refresh tests.
+
 Standalone v1.0.3 updates the app to **SideStore 0.7.0 nightly** while preserving this project's LocalDevVPN → Lockdown/CoreDevice → RSD refresh path. Combined LiveContainer remains on its separate v2.1.0 release.
 
 [Download the IPA](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/download/v1.0.3/SideStore-CoreDevice-AutoRefresh-v1.0.3.ipa) | [Release](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/tag/v1.0.3) | [SHA256SUMS](https://github.com/NRG-Wardog/sidestore-auto-refresh/releases/download/v1.0.3/SHA256SUMS.txt)

@@ -1,6 +1,23 @@
 # Verification Report
 
-## Scope
+> **3.0.2.1 deployment:** See [the frozen baseline and test matrix](RELEASE_NOTES_v3.0.2.1.md)
+> and [recommended Shortcuts refresh](../README.md#recommended-refresh-via-shortcuts).
+> RPP-only pairing is recommended; internal LC Auto-refresh is unused. True Hairpin
+> and CoreDevice/62078 are historical/experimental, not this deployment's recommendation.
+> Older release evidence and pending issue-specific checks below retain their original scope;
+> they neither override the 3.0.2.1 configuration nor gain new PASS results from its refresh tests.
+
+## 3.0.2.1 verification
+
+The deployment owner reports home Wi-Fi PASS, Wi-Fi 2 PASS, hotspot PASS,
+sleep/wake PASS and Shortcuts refresh PASS with RPP-only pairing, Tunnel
+`10.7.0.1` / Device-Peer `10.7.0.2`, Use Local VPN ON and Port Override `0`.
+Remaining signing lifetime on LC Home is the operating check. LC logs are empty
+in this deployment; internal LC Auto-refresh is OFF and unused. See the baseline
+release notes for immutable pins, build 36748073104 and its exact IPA checksum.
+These are owner-reported device results, separate from local repository checks.
+
+## Historical evidence scope
 
 This report distinguishes standalone SideStore evidence from the combined
 LiveContainer + embedded SideStore release. Proof from one variant must not be

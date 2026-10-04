@@ -1,5 +1,12 @@
 # Combined candidate acceptance (v2 and v3)
 
+> **3.0.2.1 deployment:** See [the frozen baseline and test matrix](RELEASE_NOTES_v3.0.2.1.md)
+> and [recommended Shortcuts refresh](../README.md#recommended-refresh-via-shortcuts).
+> RPP-only pairing is recommended; internal LC Auto-refresh is unused. True Hairpin
+> and CoreDevice/62078 are historical/experimental, not this deployment's recommendation.
+> Older release evidence and pending issue-specific checks below retain their original scope;
+> they neither override the 3.0.2.1 configuration nor gain new PASS results from its refresh tests.
+
 These are separate draft prerelease candidates. Package identity is the full builder
 commit and CI run in each package's Build Candidate diagnostics and matching evidence,
 not the upstream displayed version 3.8.9. Static/package verification JSON is not

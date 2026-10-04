@@ -1,6 +1,30 @@
 # Device Compatibility
 
-This page tracks real-device results for the SideStore Auto-Refresh CoreDevice path.
+> **3.0.2.1 deployment:** See [the frozen baseline and test matrix](RELEASE_NOTES_v3.0.2.1.md)
+> and [recommended Shortcuts refresh](../README.md#recommended-refresh-via-shortcuts).
+> RPP-only pairing is recommended; internal LC Auto-refresh is unused. True Hairpin
+> and CoreDevice/62078 are historical/experimental, not this deployment's recommendation.
+> Older release evidence and pending issue-specific checks below retain their original scope;
+> they neither override the 3.0.2.1 configuration nor gain new PASS results from its refresh tests.
+
+## Current 3.0.2.1 coverage
+
+| Scenario | Deployment-owner result |
+| --- | --- |
+| Home Wi-Fi | PASS |
+| Wi-Fi 2 | PASS |
+| Hotspot over Wi-Fi | PASS |
+| Sleep/wake | PASS |
+| Shortcuts refresh | PASS |
+
+Use fixed Tunnel `10.7.0.1` / Device-Peer `10.7.0.2`, Use Local VPN ON,
+Port Override `0`, RPP-only pairing and SideInstaller DNS Automatic.
+Check LC Home signing lifetime; internal LC Auto-refresh is unused.
+Other devices/OS versions and cellular-only operation are not established by these results.
+
+## Historical CoreDevice coverage
+
+The following records describe older releases only.
 
 The implementation does not hardcode `10.x`, `192.168.x`, or another specific IPv4 range. It derives the LocalDevVPN peer from the active interface and routing table. The LocalDevVPN Tunnel IP and Device IP still need to be configured as unused `/32` addresses inside the iPhone's current Wi-Fi subnet.
 
